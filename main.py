@@ -1,12 +1,10 @@
 import argparse
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
 import torch.nn.functional as F
 
-from layers.simple_cnn import SimpleCNN
 from layers.highway import Highway
 
 
@@ -26,7 +24,7 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='disables CUDA training')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
-parser.add_argument('--log-interval', type=int, default=100, metavar='N',
+parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                     help='how many batches to wait before logging training status')
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -46,21 +44,15 @@ train_loader = torch.utils.data.DataLoader(
                    ])),
     batch_size=args.batch_size, shuffle=True, **kwargs)
 test_loader = torch.utils.data.DataLoader(
-    datasets.MNIST('../data', train=False, transform=transforms.Compose([
+    datasets.MNIST('../data',
+                   train=False,
+                   transform=transforms.Compose([
                        transforms.ToTensor(),
                        transforms.Normalize((0.1307,), (0.3081,)),
                        transforms.Lambda(lambda x: x.numpy().flatten()), # comment-out if you try SimpleCNN
                    ])),
     batch_size=args.test_batch_size, shuffle=True, **kwargs)
 
-
-# model = SimpleCNN()
-model = Highway(in_size=28*28, out_size=10)
-print(model)
-if args.cuda:
-    model.cuda()
-
-optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
 def train(epoch):
     model.train()
@@ -74,9 +66,10 @@ def train(epoch):
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.4f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), loss.data[0]))
+
 
 def test():
     model.eval()
@@ -92,11 +85,20 @@ def test():
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
     test_loss /= len(test_loader.dataset)
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
 
-for epoch in range(1, args.epochs + 1):
-    train(epoch)
-    test()
+# model = SimpleCNN()
+for n_layers in range(4):
+    print('n_layers', n_layers)
+    model = Highway(in_size=28*28, out_size=10, n_layers=n_layers)
+    # print(model)
+    if args.cuda:
+        model.cuda()
+
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+    for epoch in range(1, args.epochs + 1):
+        train(epoch)
+        test()
